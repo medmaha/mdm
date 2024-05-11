@@ -31,7 +31,10 @@ export default function PostMusic(props: PostMusicProps) {
   useEffect(() => {
     return () => {
       clearInterval(trackerIntervalRef.current);
+      audio?.pause();
+      audio?.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setVolume = (volume: number) => {

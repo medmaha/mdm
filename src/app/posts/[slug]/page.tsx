@@ -9,6 +9,7 @@ import PostCaption from "../components/PostCaption";
 import PostActions from "../components/PostActions";
 import PostImage from "../components/PostImage";
 import PostVideo from "../components/PostVideo";
+import { format } from "date-fns";
 
 export default async function Page(props: PageProps) {
   const { slug } = props.params;
@@ -18,7 +19,7 @@ export default async function Page(props: PageProps) {
   if (!post) return <NotFound message={"Post not found"} />;
 
   return (
-    <div className="max-w-[1000px] mx-auto mb-6">
+    <div className="max-w-[1050px] mx-auto mb-6">
       <div className="flex px-4 items-center justify-between mb-4 gap-2 card p-2 rounded-lg">
         <div className="">
           <BackButton text />
@@ -42,16 +43,21 @@ export default async function Page(props: PageProps) {
             <PostAuthor post={post} />
           </div>
         </div>
-        <div className="border-l pt-2 px-2 md:min-w-[300px] lg:max-w-[350px] w-full">
-          <div className="border-b space-y-4 pb-4">
+        <div className="md:border-l pt-2 md:min-w-[300px] lg:max-w-[350px] w-full h-full">
+          <div className="border-b px-2 space-y-4 pb-4 sticky md:static">
             <PostAuthor post={post} />
             <div className="space-y-4">
-              <PostCaption caption={post.caption} mediaName={post.mediaName} />
+              <PostCaption
+                caption={post.caption}
+                mediaName={post.mediaName}
+                time={format(post.createdAt, "PPPp")}
+                postType={post.fileType}
+              />
               <PostActions user={user} post={post} size="sm" />
             </div>
             {/* Add more post details here */}
           </div>
-          <div className="max-h-[80svh] pr-1 overflow-hidden overflow-y-auto pb-4">
+          <div className="md:max-h-[80svh] pl-2 pr-1 overflow-hidden overflow-y-auto pb-4 w-full">
             <PostDetailsComments post={post} user={user} />
           </div>
         </div>

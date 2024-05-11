@@ -26,7 +26,7 @@ export default function PostCaption({ caption, ...props }: Props) {
     <div
       className={`text-sm ${
         !showMediaName ? "flex" : ""
-      } items-center justify-between`}
+      } items-center justify-between px-2 py-2`}
     >
       {showMediaName && (
         <p className="pb-1">
@@ -40,7 +40,7 @@ export default function PostCaption({ caption, ...props }: Props) {
       >
         {caption}
       </p>
-      {!showMediaName && (
+      {!showMediaName && props.postType === "audio" && (
         <p className="text-sm opacity-70">
           <small>
             <time>{props.time}</time>

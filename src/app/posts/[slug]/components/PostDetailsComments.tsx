@@ -116,7 +116,7 @@ export default function PostDetailsComments({ user, post }: Props) {
         </div>
       )}
       {comments && !comments.length && (
-        <div className="p-4">
+        <div className="p-4 w-full">
           <div className="flex items-center mt-4 justify-center flex-col gap-2">
             <p className="text-xs opacity-80 font-semibold">
               Be the first to comment!

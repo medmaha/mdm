@@ -8,13 +8,13 @@ import {
   Send,
   Share2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ForwardedRef, useEffect, useRef, useState } from "react";
 import AudioRecorder from "./AudioRecorder";
-import { makeComment } from "./actions";
+import { makeLike, makeComment } from "./actions";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
 import CommentsWrapper from "./CommentsWrapper";
+import Textarea from "@/app/components/UI/Textarea";
 
 type Props = {
   user?: AuthUser;
@@ -25,12 +25,12 @@ type Props = {
 // Post Card for individual posts
 export default function PostActions({ post, user, ...props }: Props) {
   const router = useRouter();
-  const commentRef = useRef<HTMLTextAreaElement>(null);
 
   const [submitting, toggleSubmitting] = useState(false);
   const [recording, setRecording] = useState(false);
   const [textAreaValid, setTextAreaValid] = useState(false);
   const [openComments, toggleOpenComments] = useState(false);
+  const [liked, toggleLiked] = useState(false);
 
   const [counts, setCounts] = useState({
     likes: post.likesCount,
@@ -67,7 +67,13 @@ export default function PostActions({ post, user, ...props }: Props) {
         incrementCommentCount
       );
     };
-  }, []);
+  }, [post.slug]);
+
+  function getTextarea() {
+    return document.querySelector(
+      `[data-slug="${post.slug}"] textarea.new-comment`
+    ) as HTMLTextAreaElement | undefined;
+  }
 
   async function submitForm(formData: FormData) {
     if (submitting) {
@@ -78,23 +84,30 @@ export default function PostActions({ post, user, ...props }: Props) {
       router.push("/auth/login");
       return false;
     }
+    // return alert(text);
     formData.append("post_slug", post.slug!);
     try {
       toggleSubmitting(true);
       const response = await makeComment(formData);
       toggleSubmitting(false);
-      if (response.success) {
+      if (response.success === true) {
         const author = {
           name: user.name,
           avatar: user.avatar,
           username: user.username,
         };
+
+        toast.success(response.message, {
+          duration: 2_500,
+          position: "bottom-left",
+        });
+
         const comment = response.data as any;
         comment.author = author;
 
         const newEvent = new CustomEvent("new-comment", { detail: comment });
         document.dispatchEvent(newEvent);
-        setCounts((prev) => ({ ...prev, comments: prev.comments || 0 + 1 }));
+        setCounts((prev) => ({ ...prev, comments: (prev.comments || 0) + 1 }));
         return true;
       }
       toast.error(response.message);
@@ -123,25 +136,64 @@ export default function PostActions({ post, user, ...props }: Props) {
       toast.error("Comments cannot be empty");
       return false;
     }
+
     const formData = new FormData();
-    formData.append("text", commentRef.current?.value!);
+    const textarea = getTextarea();
+    formData.append("text", textarea?.value!);
     formData.append("comment_type", "text");
+
+    // FIXME: Validate the comment form-data
     const created = await submitForm(formData);
-    if (created && commentRef.current) {
-      commentRef.current.value = "";
+
+    if (created && textarea?.value) {
+      if (textarea) textarea.value = "";
+      textarea.blur();
       setTextAreaValid(false);
     }
   };
 
+  const toggleLike = async () => {
+    const countSnapshot = counts.likes || 0;
+    try {
+      setCounts((prev) => {
+        return {
+          ...prev,
+          likes: countSnapshot + (liked ? -1 : 1),
+        };
+      });
+      toggleLiked((prev) => !prev);
+
+      const response = await makeLike({
+        slug: post.slug!,
+        objectType: "posts",
+      });
+
+      if (response.success) {
+        if (!response.data) {
+        }
+      } else throw new Error(response.message);
+    } catch ({ message }: any) {
+      setCounts((prev) => {
+        return {
+          ...prev,
+          likes: countSnapshot,
+        };
+      });
+      toggleLiked((prev) => !prev);
+      toast.error(message, { duration: 5_000 });
+    }
+  };
+
   return (
-    <div className={`pb-2`}>
+    <div className={`pb-4`} data-slug={post.slug}>
       {/* Action Buttons */}
-      <div className="flex items-center justify-between gap-3 px-1">
+      <div className="flex items-center justify-between gap-3 px-2">
         <div className="flex items-center gap-3">
           <ActionButton
             color="red"
             count={counts.likes!}
             icon={Heart}
+            onClick={toggleLike}
             size={props.size || "md"}
             iconClassName={`${false ? "fill-red-300" : ""}`}
           />
@@ -172,23 +224,23 @@ export default function PostActions({ post, user, ...props }: Props) {
 
       {openComments && (
         <>
-          <div className="mt-4 relative h-max flex">
-            <textarea
+          <div className="mt-4 pl-1 relative h-max flex">
+            <Textarea
+              rows={1}
               readOnly={recording || submitting}
-              ref={commentRef}
-              className="input read-only:cursor-not-allowed flex-1 resize-none relative w-full m-0 p-2 text-sm pr-9 min-h-[70px]"
+              className="new-comment border rounded read-only:cursor-not-allowed flex-1 relative w-full text-sm pr-9 min-h-[70px]"
               disabled={recording}
               placeholder={!recording ? "Add a comment..." : ""}
               onChange={async ({ target: { value } }) => {
                 setTextAreaValid(value?.length > 0);
               }}
-              onKeyDown={(e) => {
+              onKeyDown={async (e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  submitTextComment();
+                  await submitTextComment();
                 }
               }}
-            ></textarea>
+            ></Textarea>
 
             {submitting && (
               <div className="absolute bottom-0 left-0 w-[calc(100%-36px)] overflow-hidden rounded-b-md">

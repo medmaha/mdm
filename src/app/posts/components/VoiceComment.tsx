@@ -16,7 +16,7 @@ const getAudio = () => {
   return _audio;
 };
 
-export default function VoiceComment({ src, toggleReply }: Props) {
+export default function VoiceComment({ src, toggleReply, ...props }: Props) {
   const progressRef = useRef<HTMLDivElement>(null);
   const [audio, setAudio] = useState<HTMLAudioElement>();
   const [playing, setPlaying] = useState(false);
@@ -123,7 +123,10 @@ export default function VoiceComment({ src, toggleReply }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-1 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600">
+            <button
+              onClick={props.toggleLike}
+              className="p-1 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600"
+            >
               <ThumbsUp width={16} height={16} />
             </button>
             {toggleReply && (

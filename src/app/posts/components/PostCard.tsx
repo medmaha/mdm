@@ -27,14 +27,14 @@ export default function Post({ post, user }: Props) {
       {post.fileType === "video" && <PostVideo post={post} />}
       {post.fileType === "audio" && <PostMusic post={post} />}
       {post.fileType === "other" && <p>Unknown file type!</p>}
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <PostCaption
           time={time}
           postType={post.fileType}
           caption={post.caption}
           mediaName={post.mediaName}
         />
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex p-2 pb-0 items-center justify-between gap-3">
           {post.fileType !== "audio" && (
             <>
               <PostAuthor post={post} />

@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 
 type Props = {
   user?: AuthUser;
+  detailPage?: boolean;
   post: PostFeedsInterface;
 };
 
@@ -19,7 +20,7 @@ function getCommentCount(comments: CommentListInterface) {
   return comments.reduce((acc, cur) => acc + (1 + cur.replies?.length || 0), 0);
 }
 
-export default function CommentsWrapper({ user, post }: Props) {
+export default function CommentsWrapper({ user, post, ...props }: Props) {
   const [fetching, toggleFetching] = useState(false);
   const [comments, setComments] = useState<CommentListInterface>();
   const [count, setCount] = useState(
@@ -116,7 +117,7 @@ export default function CommentsWrapper({ user, post }: Props) {
           toggleFetching(false);
           return;
         }
-        const response = await getComments(post.slug!);
+        const response = await getComments<CommentListInterface>(post.slug!);
         if (response.success) {
           setComments(response.data);
           commentsCached.set(post.slug!, response.data);
@@ -160,8 +161,14 @@ export default function CommentsWrapper({ user, post }: Props) {
 
   return (
     <>
-      <div className="mt-4">
-        <div className="flex border-y dark:border-gray-500/70 py-1 items-center justify-between">
+      <div
+        className={`mt-4 px-1 ${
+          props.detailPage
+            ? ""
+            : "max-h-[75svh] overflow-hidden overflow-y-auto"
+        }`}
+      >
+        <div className="flex sticky top-0 z-[1] card shadow border-y px-2 dark:border-gray-500/70 py-1 items-center justify-between">
           <h4 className="sm:font-semibold text-sm dark:opacity-90">
             Comments {count}
           </h4>
@@ -180,7 +187,15 @@ export default function CommentsWrapper({ user, post }: Props) {
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         )}
-        {comments && !comments.length && <p>No comments yet</p>}
+        {comments && !comments.length && (
+          <div className="p-4 w-full">
+            <div className="flex items-center mt-4 justify-center flex-col gap-2">
+              <p className="text-xs opacity-80 font-semibold">
+                Be the first to comment!
+              </p>
+            </div>
+          </div>
+        )}
         {comments &&
           comments.map((comment) => (
             <CommentItem key={comment.id} comment={comment} user={user} />

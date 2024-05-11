@@ -9,7 +9,7 @@ type Props = {
   toggleReply?: () => void;
 };
 
-export default function TextComment({ text, toggleReply }: Props) {
+export default function TextComment({ text, toggleReply, ...props }: Props) {
   return (
     <>
       <div className="dark:bg-black/20 p-0.5 bg-gray-400 rounded-3xl w-full">
@@ -18,7 +18,10 @@ export default function TextComment({ text, toggleReply }: Props) {
             <p className="text-xs p-2">{text || "No content provided"}</p>
           </div>
           <div className="flex items-center self-end h-8 pr-2 gap-2">
-            <button className="p-1 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600">
+            <button
+              onClick={props.toggleLike}
+              className="p-1 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600"
+            >
               <ThumbsUp width={16} height={16} />
             </button>
             {toggleReply && (

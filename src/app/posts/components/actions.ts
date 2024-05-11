@@ -4,8 +4,10 @@ import { getAuthenticatedUser } from "@/lib/auth";
 import { uploadFile } from "@/lib/firebase/uploader";
 import {
   CommentListInterface,
+  createComment,
   getPostComments,
 } from "@/server/controllers/comments";
+import { makeLikeObject } from "@/server/controllers/likes";
 import DB from "@/server/db/connection";
 import {
   CommentInterface,
@@ -16,119 +18,103 @@ import {
 import { posts } from "@/server/models/posts";
 import { sql } from "drizzle-orm";
 
+type MakeLikeProps = {
+  slug?: string;
+  objectId?: string;
+  objectType: "posts" | "comments" | "replies";
+};
 // prettier-ignore
-export async function makeComment(formData: FormData): Promise<ActionReturn<CommentInterface>> {
-    const auth =  getAuthenticatedUser();
-    if (!auth) {
-      return {
-        success: false,
-        message: "[Unauthorized] Invalid user",
-      };
+export async function makeLike(props:MakeLikeProps) :Promise<ActionReturn<boolean>>{
+  const author = getAuthenticatedUser()
+
+  if (!author){
+    return {
+      success:false,
+      message:"You're unauthorized for this request"
     }
-    const postSlug = formData.get("post_slug")?.toString();
-    const commentType = formData.get("comment_type")?.toString() as any;
+  }
 
-    if (!commentType || !postSlug) {
-        return {
-            success: false,
-            message: "Invalid comment",
-        };
+  const response = await makeLikeObject({
+    postSlug: props.slug,
+    objectId:props.objectId,
+    username:author.username,
+    objectType:props.objectType
+  })
+
+  if (!response){
+    return {
+      success:false,
+      message:`Error! failed to like ${props.objectType}`
     }
+  }
 
-    const text = formData.get("text")?.toString();
-    const file = formData.get("file") as File | undefined;
+  return {
+    success:true,
+    data: response.liked,
+    message:`Liked ${response.liked ? '👍' : '👎'}`
+  }
+}
 
-    let fileUrl: string | undefined
-    if (file) {
-      fileUrl = await uploadFile(file, "comment");
-      if (!fileUrl) 
-        return {
-            success: false,
-            message: "Error uploading file",
-        }
-    }   
-
-    const user = (await DB.query.users.findFirst({ where: sql`username=${auth.username}`}))!
-    const [rows] = await Promise.all([
-      DB.insert(comments,).values({
-        text,
-        fileUrl,
-        postSlug,
-        commentType,
-        authorId: user.id,
-      }).returning(),
-      DB.update(posts).set({commentsCount: sql`comments_count + 1`}).where(sql`slug=${postSlug}`)
-    ])
-
-
+// prettier-ignore
+export async function getComments<T>(slug: string) :Promise<ActionReturn<T>>{
+    const comments = await getPostComments(slug)
     return {
         success:true,
-        data: rows[0],
-        message:"Comment created successfully",
+        data: comments as T,
+        message:"Comments retrieved successfully",
     }
+}
 
+// prettier-ignore
+export async function makeComment(formData: FormData): Promise<ActionReturn<CommentInterface>> {
+  // Make the user is authenticated
+  const auth = getAuthenticatedUser();
+  if (!auth) {
+    return {
+      success: false,
+      message: "[Unauthorized] Invalid user",
+    };
+  }
+
+  const json = Object.fromEntries(formData.entries());
+
+  const { post_slug, comment_type, text } = json;
+
+  return createComment<CommentInterface>(
+    {
+      author: auth.username,
+      postSlug: post_slug?.toString(),
+      commentType: comment_type.toString(),
+      text: text?.toString(),
+      file:(json.file as File),
+    },
+    false
+  );
 }
 
 // prettier-ignore
 export async function makeCommentReply(formData: FormData): Promise<ActionReturn<ReplyInterface>> {
-  const auth =  getAuthenticatedUser();
-    if (!auth) {
-      return {
-        success: false,
-        message: "[Unauthorized] Invalid user",
-      };
-    }
-    const postSlug = formData.get("post_slug")?.toString();
-    const commentType = formData.get("comment_type")?.toString() as any;
-    const parentId = Number(formData.get("parent_id")?.toString());
-
-    if (!commentType || !postSlug || !parentId) {
-        return {
-            success: false,
-            message: "Invalid comment",
-        };
-    }
-
-    const text = formData.get("text")?.toString();
-    const file = formData.get("file") as File | undefined;
-
-    let fileUrl: string | undefined
-    if (file) {
-      fileUrl = await uploadFile(file, "comment");
-      if (!fileUrl) 
-        return {
-            success: false,
-            message: "Error uploading file",
-        }
-    }   
-
-    const user = (await DB.query.users.findFirst({ where: sql`username=${auth.username}`}))!
-    const [rows] = await Promise.all([
-      DB.insert(replies,).values({
-        text,
-        fileUrl,
-        postSlug,
-        parentId,
-        commentType,
-        authorId: user.id,
-      }).returning(),
-      DB.update(posts).set({commentsCount: sql`comments_count + 1`}).where(sql`slug=${postSlug}`)
-    ])
-
-
+  // Make the user is authenticated
+  const auth = getAuthenticatedUser();
+  if (!auth) {
     return {
-        success:true,
-        data: rows[0],
-        message:"Comment created successfully",
-    }
-}
+      success: false,
+      message: "[Unauthorized] Invalid user",
+    };
+  }
+  const json = Object.fromEntries(formData.entries());
+  const { post_slug, comment_type, text, parent_id } = json;
 
-// prettier-ignore
-export async function getComments(slug: string) :Promise<ActionReturn<CommentListInterface>>{
-    const comments = await getPostComments(slug)
-    return {
-        success:true,
-        data: comments,
-        message:"Comments retrieved successfully",
-    }
+  return createComment<ReplyInterface>(
+    {
+      
+      author: auth.username,
+      postSlug: post_slug?.toString(),
+      commentType: comment_type?.toString(),
+      parentId: parent_id?.toString() as any,
+      text: text?.toString(),
+      file:(json.file as File),
+    },
+    true
+  );
 }

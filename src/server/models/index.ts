@@ -9,7 +9,7 @@ import {
   repliesRelations,
   commentsRelations,
 } from "./comments";
-import { likes } from "./likes";
+import { likes, likesRelations } from "./likes";
 
 const relations = {
   viberRelations,
@@ -17,6 +17,7 @@ const relations = {
   commentsRelations,
   followerRelations,
   repliesRelations,
+  likesRelations,
   supporterRelations,
 };
 

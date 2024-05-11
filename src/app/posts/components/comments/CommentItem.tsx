@@ -6,13 +6,10 @@ import { useState } from "react";
 import TextComment from "../TextComment";
 import VoiceComment from "../VoiceComment";
 import { format } from "date-fns";
-import {
-  CommentListInterface,
-  CommentReplyInterface,
-} from "@/server/controllers/comments";
+import { CommentListInterface } from "@/server/controllers/comments";
 import Textarea from "@/app/components/UI/Textarea";
 import ReplyItem from "./ReplyItem";
-import { makeCommentReply } from "../actions";
+import { makeCommentReply, makeLike } from "../actions";
 import toast from "react-hot-toast";
 
 type CommentProps = {
@@ -23,13 +20,18 @@ type CommentProps = {
 export default function CommentItem({ comment: data, user }: CommentProps) {
   const [comment, setComment] = useState(data);
   const [reply, toggleReply] = useState(false);
+  const [liked, toggleLiked] = useState(false);
+  const [counts, setCounts] = useState({
+    likes: data.likesCount,
+    replies: data.repliesCount,
+  });
   const [submitting, toggleSubmitting] = useState(false);
 
+  // Submit the comment reply to the server
   const submitReply = async (textarea: HTMLTextAreaElement) => {
     if (submitting) return;
 
-    const formData = new FormData();
-
+    // Data to be sent to the server
     const data = {
       text: textarea.value,
       comment_type: "text",
@@ -38,18 +40,33 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
     };
 
     toggleSubmitting(true);
+
+    // Create a form-data
+    const formData = new FormData();
+
+    // Add the data properties to the form-data
     Object.entries(data).forEach(([key, value]) => {
-      formData.append(key, value as string);
+      formData.append(key, value as any);
     });
+
+    // Optimistically update the comment reply counts
+    setCounts((prev) => ({ ...prev, replies: (prev.replies || 0) + 1 }));
     const response = await makeCommentReply(formData);
     toggleSubmitting(false);
 
+    // If there was an error
     if (!response.success) {
-      toast.error(response.message, { duration: 5_000 });
-      return;
+      // reverts the optimistic update
+      setCounts((prev) => ({ ...prev, replies: (prev.replies || 1) - 1 }));
+
+      // display the error
+      return toast.error(response.message, { duration: 5_000 });
     }
 
+    // Clear the reply textarea
     textarea.value = "";
+
+    // Construct the reply and add the current user as the author
     const reply = {
       ...response.data,
       author: {
@@ -59,37 +76,87 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
       },
     };
 
+    // Add the reply to the comment replies
     setComment((prev) => {
       const replies = prev.replies || [];
+
+      // Insert the reply at the first position
       replies.unshift(reply);
 
+      // FIXME: This should be done in a better way
+      // Remove the reply from the cache
       let cleanedReplies = {} as { [key: string]: (typeof replies)[0] };
-
       replies.forEach((reply) => {
         cleanedReplies[reply.id] = reply;
       });
 
+      // Construct the new data
       const data = {
         ...prev,
         replies: Object.values(cleanedReplies),
       };
+
+      // Dispatch the event to update this posts comments cache
       const event = new CustomEvent("cache-post-comments", {
         detail: { commentId: comment.id, data: data },
       });
       document.dispatchEvent(event);
+
       return data;
     });
-    toggleReply(false);
 
+    // Notify the user that the reply was created
+    toggleReply(false);
     toast.success("Reply created successfully", {
       duration: 5_000,
       position: "bottom-left",
     });
 
+    // Dispatch the event to increment the post interaction counts
     const event = new CustomEvent("increment-post-interaction-counts", {
       detail: { type: "comment" },
     });
     document.dispatchEvent(event);
+  };
+
+  // Like or unlike the comment
+  const toggleLike = async () => {
+    // Get the current interaction states
+    const likedSnapshot = liked;
+    const countSnapshot = counts.likes || 0;
+
+    try {
+      // Optimistically update the interaction states
+      toggleLiked((prev) => !prev);
+      setCounts((prev) => {
+        return {
+          ...prev,
+          likes: countSnapshot + (likedSnapshot ? -1 : 1),
+        };
+      });
+
+      // Send the request
+      const response = await makeLike({
+        objectId: String(comment.id),
+        objectType: "comments",
+      });
+
+      // If an error occurred
+      if (!response.success) {
+        // throw an error with the response message
+        throw new Error(response.message);
+      }
+    } catch ({ message }: any) {
+      // Revert the optimistic updates
+      toggleLiked(likedSnapshot);
+      setCounts((prev) => {
+        return {
+          ...prev,
+          likes: countSnapshot,
+        };
+      });
+      toast.error(message, { duration: 5_000 });
+    }
   };
 
   return (
@@ -97,7 +164,7 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
       <div key={comment.id} className="last:border-none border-b pt-2 pb-1">
         <Link
           href={`/${comment.author?.username}`}
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-2 w-max"
         >
           <div className="flex w-8 h-8 border rounded-full overflow-hidden">
             {comment.author?.avatar && (
@@ -125,11 +192,11 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
             <TextComment
               text={comment.text!}
               replied={false}
-              liked={false}
-              toggleLike={async () => {}}
+              liked={liked}
+              toggleLike={toggleLike}
               toggleReply={() => toggleReply((p) => !p)}
             />
-            <CommentDate comment={comment} />
+            <CommentDate comment={comment} counts={counts} />
           </div>
         )}
         {comment.commentType === "image" && <div className="">Image</div>}
@@ -138,11 +205,11 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
             <VoiceComment
               src={comment.fileUrl!}
               replied={false}
-              liked={false}
-              toggleLike={async () => {}}
+              liked={liked}
+              toggleLike={toggleLike}
               toggleReply={() => toggleReply((p) => !p)}
             />
-            <CommentDate comment={comment} />
+            <CommentDate comment={comment} counts={counts} />
           </div>
         )}
         {reply && (
@@ -151,7 +218,7 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
               rows={1}
               autoFocus
               placeholder={`Reply to ${comment.author?.name.toLowerCase()}...`}
-              className="min-h-[30px] pr-[60px]"
+              className="min-h-[30px] pr-[60px] text-sm"
               onKeyDown={(e) => {
                 e.key === "Enter" && submitReply(e.currentTarget);
                 e.key === "Escape" && toggleReply((p) => !p);
@@ -185,7 +252,7 @@ export default function CommentItem({ comment: data, user }: CommentProps) {
   );
 }
 
-function CommentDate({ comment }: any) {
+function CommentDate({ comment, counts }: any) {
   return (
     <div className="text-xs gap-2 text-nowrap opacity-60 flex justify-between">
       <p className="text-nowrap pl-2 flex justify-between">
@@ -196,15 +263,15 @@ function CommentDate({ comment }: any) {
           })}
         </small>
       </p>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 pr-2">
         <p>
           <small>
-            Likes <b>{comment.likesCount}</b>
+            Likes <b>{counts.likes}</b>
           </small>
         </p>
         <p>
           <small>
-            Replies <b>{comment.likesCount}</b>
+            Replies <b>{counts.replies}</b>
           </small>
         </p>
       </div>

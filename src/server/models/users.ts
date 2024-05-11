@@ -25,6 +25,8 @@ export const users = pgTable("users", {
   postsCount: integer("posts_count").notNull().default(0),
   followersCount: integer("followers_count").notNull().default(0),
   followingCount: integer("following_count").notNull().default(0),
+  interactionCount: integer("interaction_count").notNull().default(0),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
